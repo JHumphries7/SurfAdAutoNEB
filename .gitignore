@@ -1,0 +1,5 @@
+mp_api_key.txt
+__pycache__/
+*.pyc
+tmp/
+fairchem_cache/

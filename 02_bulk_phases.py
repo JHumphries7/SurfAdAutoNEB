@@ -1,0 +1,80 @@
+"""Step 2: choose the bulk phases needed for the chemical potentials and write their QE inputs.
+
+  python 02_bulk_phases.py
+Run every bulk/*_scf.pwi with pw.x (output: same name with .pwo), then run 03_chempots.py.
+"""
+import argparse
+import os
+import sys
+
+from ase.build import molecule
+from monty.serialization import dumpfn, loadfn
+from pymatgen.core import Structure
+from pymatgen.io.ase import AseAtomsAdaptor
+
+from adatom import chempots, mp, project, qe, slabs
+
+ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+ap.add_argument("--api-key")
+ap.add_argument("--ehull", type=float, default=0.050, help="keep compounds this close to the hull, eV/atom")
+ap.add_argument("--el-window", type=float, default=0.010, help="keep element polymorphs this close to the lowest")
+ap.add_argument("--max-alt", type=int, default=2, help="extra polymorphs per element")
+ap.add_argument("--box", type=float, default=20.0, help="box size for gas molecules, Angstrom")
+ap.add_argument("--refresh", action="store_true", help="query Materials Project again")
+a = ap.parse_args()
+
+cfg = project.load_config()
+if not cfg["mp_id"]:
+    sys.exit("Set mp_id in config.yaml: the hull is built around that Materials Project entry.")
+host_struct = Structure.from_file(cfg["structure"])
+elements = sorted(el.symbol for el in host_struct.composition.elements)
+
+cache = "bulk/mp_entries.json"
+os.makedirs("bulk", exist_ok=True)
+if a.refresh or not os.path.exists(cache):
+    dumpfn(mp.get_chemsys_entries(elements, a.api_key), cache)
+entries = loadfn(cache)
+
+hosts = [e for e in entries if mp.mp_id_of(e) == cfg["mp_id"]]
+if not hosts:
+    sys.exit(f"{cfg['mp_id']} is not in the {'-'.join(elements)} system on Materials Project.")
+host = min(hosts, key=lambda e: e.energy_per_atom)
+phases, verts, e_hull, pd_raw = chempots.select_phases(entries, host, a.ehull, a.el_window, a.max_alt)
+
+print(f"{cfg['mp_id']} ({host.composition.reduced_formula}): {1000 * e_hull:.1f} meV/atom above the PBE hull"
+      + ("  -> treated as on the hull (pinned)" if e_hull > 0 else ""))
+for v in verts:
+    names = " + ".join(f"{e.composition.reduced_formula} ({mp.mp_id_of(e)})" for e in v["neighbours"])
+    print("  vertex: host +", names, {k: round(x, 3) for k, x in v["dmu"].items()})
+
+dk = cfg["qe"]["kspacing"]
+manifest = []
+print(f"\n{'role':11s}{'phase':12s}{'mp id':14s}{'hull meV':>9s}  {'atoms':>5s}  k-points   input")
+for entry, role in phases:
+    formula, mpid = entry.composition.reduced_formula, mp.mp_id_of(entry)
+    gas = entry.composition.is_element and entry.composition.elements[0].symbol in chempots.GASES
+    magmom, kpts = 0.5, None
+    if role == "host":
+        atoms, prefix = AseAtomsAdaptor.get_atoms(host_struct), f"{formula}_host"
+    elif gas:
+        if role == "elem_alt":
+            continue
+        sym = entry.composition.elements[0].symbol
+        atoms = molecule(f"{sym}2")
+        atoms.set_cell([a.box] * 3)
+        atoms.center()
+        atoms.pbc = True
+        formula, prefix, kpts = f"{sym}2", f"{sym}2_molecule", (1, 1, 1)
+        magmom = 1.0 if sym in chempots.TRIPLET else 0.5
+    else:
+        atoms, prefix = AseAtomsAdaptor.get_atoms(mp.conventional(entry.structure)), f"{formula}_{mpid}"
+    kpts = kpts or slabs.kpts_from_spacing(atoms, dk)
+    atoms.write(f"bulk/{prefix}.cif")
+    qe.write_bulk_scf(f"bulk/{prefix}_scf.pwi", atoms, cfg, kpts, magmom)
+    manifest.append({"prefix": prefix, "formula": formula, "mp_id": mpid, "role": role, "molecule": gas})
+    print(f"{role:11s}{formula:12s}{mpid:14s}{1000 * pd_raw.get_e_above_hull(entry):9.1f}  {len(atoms):5d}  "
+          f"{'x'.join(map(str, kpts)):9s}  bulk/{prefix}_scf.pwi")
+
+project.save_json("bulk/phases.json", manifest)
+print("\nRun each input:  pw.x -in X_scf.pwi > X_scf.pwo   (inside bulk/)")
+print("next: python 03_chempots.py")
