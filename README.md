@@ -1,4 +1,4 @@
-# adatom-barriers
+# SurfAdAutoNEB
 
 Step-by-step scripts to estimate how easily surface atoms move on a crystalline compound:
 
