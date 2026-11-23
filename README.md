@@ -2,7 +2,7 @@
 
 Step-by-step scripts to estimate how easily surface atoms move on a crystalline compound:
 
-- **E_f**: energy to create a surface adatom from the material itself
+- **\E_f**: energy to create a surface adatom from the material itself
 - **E_m**: barrier for that adatom to migrate along a chosen direction
 - **E_A = E_f + E_m**: the activation energy to compare between materials
 
