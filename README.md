@@ -1,4 +1,4 @@
-# SurfAdAutoNEB
+# adatom-barriers
 
 Step-by-step scripts to estimate how easily surface atoms move on a crystalline compound:
 
@@ -39,6 +39,20 @@ conda activate adatom
 pip install fairchem-core==1.10.0          # the default MLIP (eSEN-30M-OAM); pulls torch 2.4 and numpy < 2
 pip install -r adatom-barriers/requirements.txt
 ```
+
+Without conda (e.g. on a cluster with a Python module):
+
+```bash
+module load python/3.12.10                 # or your cluster's Python 3.10-3.12 module
+python -m venv ~/envs/adatom
+source ~/envs/adatom/bin/activate
+pip install fairchem-core==1.10.0
+pip install -r adatom-barriers/requirements.txt
+```
+
+With a venv, load the module and activate the environment in every new shell and job script.
+`requirements.txt` keeps NumPy below 2 (needed by fairchem 1.10) and pyarrow below 26 (pyarrow 26
+requires NumPy 2 and would break the Materials Project client).
 
 The default MLIP is **eSEN-30M-OAM** (`backend: esen_oam`). Its weights are gated: request access to
 `facebook/OMAT24` on Hugging Face, then run `huggingface-cli login` once.
