@@ -19,6 +19,11 @@ def _namelists(cfg, calculation, prefix, slab_dipole=None):
               "degauss": q["degauss"], "nspin": q["nspin"]}
     if q.get("ecutrho"):
         system["ecutrho"] = q["ecutrho"]
+    if q.get("vdw_corr"):
+        system["vdw_corr"] = q["vdw_corr"]
+        if q.get("dftd3_version") and "d3" in q["vdw_corr"].lower():
+            system["dftd3_version"] = q["dftd3_version"]
+            system["dftd3_threebody"] = False  # two-body D3 only, to match the MLIP (three-body is too costly there)
     if slab_dipole is not None:            # dipole correction along z, sawtooth in the vacuum
         control.update(tefield=True, dipfield=True)
         system.update(edir=3, emaxpos=slab_dipole, eopreg=0.05, eamp=0.0)

@@ -13,7 +13,7 @@ from ase.optimize import BFGS
 
 from adatom import pes_tools as pt
 from adatom import project, slabs
-from adatom.mlip import get_calc
+from adatom.mlip import d3_from_config, get_calc
 
 ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 ap.add_argument("cases", nargs="*", help="case ids or numbers")
@@ -24,6 +24,7 @@ a = ap.parse_args()
 cfg = project.load_config()
 meta = project.load_json("cases.json")["slabs"]
 backend, relax = cfg["mlip"]["backend"], cfg["mlip"]["relax_substrate"]
+d3 = d3_from_config(cfg)
 fmax, tol = cfg["mlip"]["fmax"], cfg["slab"]["plane_tol"]
 os.makedirs("pes", exist_ok=True)
 
@@ -43,7 +44,7 @@ for tag, ads in sorted({(c["slab"], c["adatom"]) for c in project.pick_cases(a.c
     else:
         if relax:
             slab.set_constraint(FixAtoms(mask=slab.positions[:, 2] < m["zcut"]))
-            slab.calc = get_calc(backend)
+            slab.calc = get_calc(backend, d3)
             BFGS(slab, logfile=f"pes/{tag}_clean.log").run(fmax=fmax, steps=500)
             slab.set_constraint()
             slab.calc = None
@@ -57,7 +58,7 @@ for tag, ads in sorted({(c["slab"], c["adatom"]) for c in project.pick_cases(a.c
     n_fix = m["n_fixed_planes"] if relax else len(slabs.planes(prim, tol))
     for g1, g2, sym in tries:
         try:
-            res = pt.scan_pes(slab, prim, m["repeat"], ads, lambda: get_calc(backend), g1, g2,
+            res = pt.scan_pes(slab, prim, m["repeat"], ads, lambda: get_calc(backend, d3), g1, g2,
                               n_fixed_layers=n_fix, relax_substrate=relax, fmax=fmax, steps=300,
                               optimizer=BFGS, layer_tol=tol, use_symmetry=sym, symprec=1e-2)
             break

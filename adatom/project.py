@@ -16,6 +16,8 @@ DEFAULTS = {
         "smearing": "mv",
         "degauss": 0.01,
         "nspin": 2,
+        "vdw_corr": "dft-d3",     # null = no dispersion correction
+        "dftd3_version": 4,       # 4 = D3 with Becke-Johnson damping, 3 = zero damping
         "kspacing": 0.25,         # 1/Angstrom (2*pi included), used for bulk and slab k-meshes
         "conv_thr": 1e-7,
         "mixing_beta": 0.2,

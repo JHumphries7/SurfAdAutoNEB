@@ -16,7 +16,7 @@ from ase.optimize import BFGS
 
 from adatom import pes_tools as pt
 from adatom import project
-from adatom.mlip import get_calc
+from adatom.mlip import d3_from_config, get_calc
 
 ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 ap.add_argument("cases", nargs="*", help="case ids or numbers")
@@ -26,6 +26,7 @@ a = ap.parse_args()
 cfg = project.load_config()
 meta = project.load_json("cases.json")["slabs"]
 backend, relax = cfg["mlip"]["backend"], cfg["mlip"]["relax_substrate"]
+d3 = d3_from_config(cfg)
 os.makedirs("neb", exist_ok=True)
 
 for c in project.pick_cases(a.cases, a.all):
@@ -45,7 +46,7 @@ for c in project.pick_cases(a.cases, a.all):
         at = clean.copy() + Atoms(ads, positions=[[xy[0], xy[1], surf_z(xy)[0]]])
         fixed = at.positions[:, 2] < m["zcut"] if relax else np.arange(len(at)) < len(clean)
         at.set_constraint(FixAtoms(mask=fixed))
-        at.calc = get_calc(backend)
+        at.calc = get_calc(backend, d3)
         BFGS(at, logfile=None).run(fmax=0.01, steps=1000)
         return at
 
@@ -61,7 +62,7 @@ for c in project.pick_cases(a.cases, a.all):
         path = path.copy()
         path[0], path[-1] = IS.positions[-1, :2], FS.positions[-1, :2]
         images = pt.neb_images_from_path(IS, FS, path, surf_z, n_images=cfg["neb"]["n_images"])
-        calc = get_calc(backend)
+        calc = get_calc(backend, d3)
         for im in images:
             im.calc = calc
         neb = NEB(images, k=1.0, climb=False, method="improvedtangent", allow_shared_calculator=True)

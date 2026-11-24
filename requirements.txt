@@ -7,3 +7,4 @@ pymatgen
 mp-api
 spglib
 pyyaml
+torch-dftd
