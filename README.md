@@ -1,4 +1,4 @@
-# adatom-barriers
+# SurfAdAutoNEB
 
 Step-by-step scripts to estimate how easily surface atoms move on a crystalline compound:
 
@@ -33,11 +33,11 @@ run them in parallel. Step 9 needs both.
 You need Python 3.10–3.12, Quantum ESPRESSO (`pw.x`; `neb.x` only for step 10) and a GPU for the MLIP steps.
 
 ```bash
-git clone <your repository url> adatom-barriers
+git clone https://github.com/JHumphries7/SurfAdAutoNEB.git
 conda create -n adatom python=3.11
 conda activate adatom
 pip install fairchem-core==1.10.0          # the default MLIP (eSEN-30M-OAM); pulls torch 2.4 and numpy < 2
-pip install -r adatom-barriers/requirements.txt
+pip install -r SurfAdAutoNEB/requirements.txt
 ```
 
 Without conda (e.g. on a cluster with a Python module):
@@ -47,7 +47,7 @@ module load python/3.12.10                 # or your cluster's Python 3.10-3.12 
 python -m venv ~/envs/adatom
 source ~/envs/adatom/bin/activate
 pip install fairchem-core==1.10.0
-pip install -r adatom-barriers/requirements.txt
+pip install -r SurfAdAutoNEB/requirements.txt
 ```
 
 With a venv, load the module and activate the environment in every new shell and job script.
@@ -83,12 +83,12 @@ This runs steps 1 and 4–8 on copper with the toy `emt` potential:
 ```bash
 mkdir cu_test && cd cu_test
 python -c "from ase.build import bulk; bulk('Cu', 'fcc', a=3.61, cubic=True).write('Cu.cif')"
-python ../adatom-barriers/01_setup.py --cif Cu.cif --backend emt
-python ../adatom-barriers/04_choose_cases.py --facet 1 0 0 --terminations all --species all --directions a1
-python ../adatom-barriers/05_pes.py --all
-python ../adatom-barriers/06_path.py --all
-python ../adatom-barriers/07_neb.py --all
-python ../adatom-barriers/08_dft_inputs.py --all
+python ../SurfAdAutoNEB/01_setup.py --cif Cu.cif --backend emt
+python ../SurfAdAutoNEB/04_choose_cases.py --facet 1 0 0 --terminations all --species all --directions a1
+python ../SurfAdAutoNEB/05_pes.py --all
+python ../SurfAdAutoNEB/06_path.py --all
+python ../SurfAdAutoNEB/07_neb.py --all
+python ../SurfAdAutoNEB/08_dft_inputs.py --all
 ```
 
 Step 6 should report a barrier of about 0.42 eV, and `pes/*_route.png` should show the map and the path.
@@ -281,9 +281,6 @@ dft/<case>/        minima and saddle inputs
 
 ## Things to know
 
-- **Untested parts.** The scripts were tested end to end with toy potentials and synthetic QE outputs.
-  The Materials Project download, the `esen_oam` / `uma` / `mace` backends, parsing of real QE output, and the
-  `neb.x` input have not been run for real yet. Check the first real run of each carefully.
 - **Slab size drives the cost.** Check the atom count printed in step 4 before submitting DFT jobs.
 - **The map misses exchange mechanisms**, where the adatom swaps places with a surface atom. If the plot in
   step 6 shows flagged points or the adatom height drops sharply, look at that case by hand.
