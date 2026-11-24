@@ -33,8 +33,11 @@ def get_structure(mp_id, api_key=None):
 def get_chemsys_entries(elements, api_key=None):
     """All GGA entries (with structures) in the chemical system, e.g. ['Mo', 'C']."""
     with rester(api_key) as mpr:
-        return mpr.get_entries_in_chemsys("-".join(elements), compatible_only=True,
-                                          additional_criteria=GGA)
+        entries = mpr.get_entries_in_chemsys("-".join(elements), compatible_only=True,
+                                             additional_criteria=GGA)
+    for e in entries:
+        e.data = {}                        # MP metadata (not needed) can't be saved to JSON
+    return entries
 
 
 def mp_id_of(entry):
