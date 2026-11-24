@@ -51,7 +51,8 @@ pip install -r adatom-barriers/requirements.txt
 ```
 
 With a venv, load the module and activate the environment in every new shell and job script.
-`requirements.txt` keeps NumPy below 2 (needed by fairchem 1.10) and pyarrow below 26 (pyarrow 26
+`requirements.txt` also installs `torch-dftd` (D3 for the MLIP steps; it uses the torch that fairchem installed),
+keeps NumPy below 2 (needed by fairchem 1.10) and pyarrow below 26 (pyarrow 26
 requires NumPy 2 and would break the Materials Project client).
 
 The default MLIP is **eSEN-30M-OAM** (`backend: esen_oam`). Its weights are gated: request access to
@@ -114,6 +115,7 @@ unless you add `--keep-cell`. The `--mp-id` is still needed for step 2.
 | Section | Setting | Meaning |
 |---|---|---|
 | `qe` | `pseudo_dir`, `ecutwfc`, `ecutrho`, `smearing`, `degauss`, `nspin` | Written into every QE input |
+| `qe` | `vdw_corr`, `dftd3_version` | Dispersion correction (default two-body D3 with Becke–Johnson damping; `null` turns it off). The MLIP steps add the same D3 automatically. |
 | `qe` | `kspacing` | k-point spacing in 1/Å; sets the k-mesh of every bulk and slab |
 | `qe` | `forc_conv_thr` | Force threshold for relaxations (Ry/Bohr; 3.9e-4 = 0.01 eV/Å) |
 | `slab` | `min_thickness` or `n_planes` | Slab thickness in Å, or an exact number of atomic planes |
@@ -285,6 +287,9 @@ dft/<case>/        minima and saddle inputs
 - **Slab size drives the cost.** Check the atom count printed in step 4 before submitting DFT jobs.
 - **The map misses exchange mechanisms**, where the adatom swaps places with a surface atom. If the plot in
   step 6 shows flagged points or the adatom height drops sharply, look at that case by hand.
+- **Dispersion.** With `vdw_corr: dft-d3` (the default), the QE inputs and the MLIP steps both use two-body D3
+  (QE: `dftd3_threebody = .false.`; MLIP: the `torch-dftd` package). The three-body term is left out because it is
+  too expensive for the MLIP on large slabs. Set `vdw_corr: null` before step 2 for plain PBE everywhere.
 - **Spin-orbit coupling is not included.** Inputs are collinear spin-polarized (`nspin: 2`) or non-magnetic (`nspin: 1`).
 - **Facets with very closely spaced planes** may need a different `plane_tol` in `config.yaml`.
 - **Do not mix settings.** Every energy in E_f comes from a different run, so cutoff, pseudopotentials,
