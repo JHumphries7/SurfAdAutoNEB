@@ -31,9 +31,11 @@ def _namelists(cfg, calculation, prefix, slab_dipole=None):
         control["tstress"] = True
     data = {"control": control, "system": system,
             "electrons": {"conv_thr": q["conv_thr"], "mixing_mode": "local-TF", "mixing_beta": q["mixing_beta"]}}
-    if calculation == "relax":
+    if calculation in ("relax", "vc-relax"):
         control["forc_conv_thr"] = q["forc_conv_thr"]
         data["ions"] = {"ion_dynamics": "bfgs"}
+    if calculation == "vc-relax":           # QE ends with a fresh SCF at the final cell
+        data["cell"] = {"cell_dynamics": "bfgs", "cell_dofree": "all", "press_conv_thr": q["press_conv_thr"]}
     return data
 
 
@@ -49,9 +51,10 @@ def _write(path, atoms, cfg, data, kpts, magmom):
     return text
 
 
-def write_bulk_scf(path, atoms, cfg, kpts, magmom=0.5):
-    prefix = os.path.basename(path).replace("_scf.pwi", "")
-    _write(path, atoms.copy(), cfg, _namelists(cfg, "scf", prefix), kpts, magmom)
+def write_bulk(path, atoms, cfg, kpts, calculation="vc-relax", magmom=0.5):
+    """Bulk or molecule input: 'scf', 'relax' (positions only) or 'vc-relax' (positions and cell)."""
+    prefix = os.path.basename(path).rsplit("_", 1)[0]
+    _write(path, atoms.copy(), cfg, _namelists(cfg, calculation, prefix), kpts, magmom)
 
 
 def write_slab(path, atoms, cfg, kpts, zcut, emaxpos, calculation="relax", fix_xy_index=None, magmom=0.5):

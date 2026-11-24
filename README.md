@@ -15,8 +15,8 @@ Each script either generates input files for you to run, or is itself the job to
 | Step | Script | What it does | What you run afterwards |
 |---|---|---|---|
 | 1 | `01_setup.py` | Gets the conventional cell, writes `config.yaml` | – |
-| 2 | `02_bulk_phases.py` | Picks the bulk phases needed for the chemical potentials, writes their SCF inputs | `pw.x` on `bulk/*_scf.pwi` |
-| 3 | `03_chempots.py` | Reads the bulk energies, writes `chempots.json` | – |
+| 2 | `02_bulk_phases.py` | Picks the bulk phases needed for the chemical potentials, writes their relaxation inputs | `pw.x` on `bulk/*.pwi` |
+| 3 | `03_chempots.py` | Reads the bulk energies, writes `chempots.json`, saves the relaxed cell of your material | – |
 | 4 | `04_choose_cases.py` | Lists facets, terminations, adatom species and directions; you choose; builds slabs and clean-slab inputs | `pw.x` on `dft/<slab>/*_clean_relax.pwi` |
 | 5 | `05_pes.py` | Energy map of the adatom over the surface (MLIP) | this script, on a GPU node |
 | 6 | `06_path.py` | Finds and plots the migration path on the map | – (look at the plot) |
@@ -25,8 +25,7 @@ Each script either generates input files for you to run, or is itself the job to
 | 9 | `09_results.py` | Collects E_f, E_m, E_A into a table and `results.csv` | – |
 | 10 | `10_nebx_input.py` | Optional: `neb.x` input for a full DFT NEB check of one hop | `neb.x` |
 
-Steps 2–3 (chemical potentials) and steps 4–8 (slabs and paths) are independent, so you can
-run them in parallel. Step 9 needs both.
+Run the steps in order: the slabs in step 4 are cut from the cell relaxed in steps 2–3.
 
 ## Install
 
@@ -84,7 +83,7 @@ This runs steps 1 and 4–8 on copper with the toy `emt` potential:
 mkdir cu_test && cd cu_test
 python -c "from ase.build import bulk; bulk('Cu', 'fcc', a=3.61, cubic=True).write('Cu.cif')"
 python ../SurfAdAutoNEB/01_setup.py --cif Cu.cif --backend emt
-python ../SurfAdAutoNEB/04_choose_cases.py --facet 1 0 0 --terminations all --species all --directions a1
+python ../SurfAdAutoNEB/04_choose_cases.py --unrelaxed --facet 1 0 0 --terminations all --species all --directions a1
 python ../SurfAdAutoNEB/05_pes.py --all
 python ../SurfAdAutoNEB/06_path.py --all
 python ../SurfAdAutoNEB/07_neb.py --all
@@ -118,6 +117,8 @@ unless you add `--keep-cell`. The `--mp-id` is still needed for step 2.
 | `qe` | `vdw_corr`, `dftd3_version` | Dispersion correction (default two-body D3 with Becke–Johnson damping; `null` turns it off). The MLIP steps add the same D3 automatically. |
 | `qe` | `kspacing` | k-point spacing in 1/Å; sets the k-mesh of every bulk and slab |
 | `qe` | `forc_conv_thr` | Force threshold for relaxations (Ry/Bohr; 3.9e-4 = 0.01 eV/Å) |
+| `qe` | `press_conv_thr` | Pressure threshold for the bulk cell relaxations, kbar |
+| – | `relax_bulk` | `true` (default): relax the bulk cells (`vc-relax`) and build slabs from the relaxed cell. `false`: single-point SCFs on the Materials Project cells. |
 | `slab` | `min_thickness` or `n_planes` | Slab thickness in Å, or an exact number of atomic planes |
 | `slab` | `vacuum` | Total vacuum, Å |
 | `slab` | `min_width` or `repeat` | In-plane supercell: at least this wide in Å, or e.g. `[4, 4]` |
@@ -142,11 +143,18 @@ This builds the Materials Project PBE convex hull around your material and picks
 - `near_hull`: nearby compounds that could change the hull with your own energies
 
 Gas elements (H, N, O, F, Cl) are computed as an isolated molecule in a box.
-The script writes one structure and one SCF input per phase in `bulk/`. Run each one:
+The script writes one structure and one input per phase in `bulk/`:
+
+- solids: `*_vcrelax.pwi`, which relaxes atom positions and the cell. QE finishes a `vc-relax` with a fresh
+  SCF at the final cell, and that energy is the one used, so no separate SCF is needed.
+- molecules: `*_relax.pwi` (the bond length relaxes; the box stays fixed)
+
+With `relax_bulk: false` in `config.yaml` you get `*_scf.pwi` single points on the Materials Project cells instead.
+Run each one:
 
 ```bash
 cd bulk
-pw.x -in MoC_host_scf.pwi > MoC_host_scf.pwo
+pw.x -in MoC_host_vcrelax.pwi > MoC_host_vcrelax.pwo
 ```
 
 **Outputs must have the same name as the input, ending in `.pwo`.** This holds for every QE run in this workflow.
@@ -162,7 +170,12 @@ If your material is slightly above the hull, it is shifted onto it and the scrip
 The reference vertex is the metal-rich one (lowest chemical potential of the most electronegative element).
 Use `--vertex N` to pick another. The result is saved in `chempots.json`.
 
-Check the printed pressures: a few tens of kbar is fine for a structure that was not re-relaxed with your settings.
+It also saves the relaxed cell of your material to `structure/<name>_relaxed.cif` and points `config.yaml`
+to it (the original is kept as `structure_unrelaxed`), so step 4 cuts the slabs from the relaxed cell.
+It prints how much the lattice constants changed.
+
+Check the printed pressures: after a `vc-relax` they should be close to zero (within a few kbar).
+Without relaxation, a few tens of kbar is normal.
 
 ### 4. Choose what to compute
 
@@ -194,6 +207,8 @@ The script writes the slabs to `slabs/` and a clean-slab relaxation to `dft/<sla
 The bottom half of each slab is fixed and a dipole correction is included.
 
 Useful options: `--planes 12` (exact number of atomic planes), `--thickness 15`, `--repeat 4 4`.
+Step 4 refuses to run until step 3 has saved the relaxed cell; `--unrelaxed` skips that check
+(as in the self-test).
 
 ### 5. Energy map (GPU)
 

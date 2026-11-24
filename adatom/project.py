@@ -22,7 +22,9 @@ DEFAULTS = {
         "conv_thr": 1e-7,
         "mixing_beta": 0.2,
         "forc_conv_thr": 3.9e-4,  # Ry/Bohr = 0.01 eV/Angstrom
+        "press_conv_thr": 0.5,    # kbar, for the bulk vc-relax
     },
+    "relax_bulk": True,           # vc-relax the bulk phases and build slabs from the relaxed host
     "slab": {
         "min_thickness": 12.0,    # Angstrom; ignored if n_planes is set
         "n_planes": None,

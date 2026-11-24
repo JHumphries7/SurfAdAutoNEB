@@ -1,7 +1,8 @@
 """Step 2: choose the bulk phases needed for the chemical potentials and write their QE inputs.
 
   python 02_bulk_phases.py
-Run every bulk/*_scf.pwi with pw.x (output: same name with .pwo), then run 03_chempots.py.
+Writes vc-relax inputs (relax for gas molecules), or SCF inputs if relax_bulk is false in config.yaml.
+Run every bulk/*.pwi with pw.x (output: same name with .pwo), then run 03_chempots.py.
 """
 import argparse
 import os
@@ -26,7 +27,7 @@ a = ap.parse_args()
 cfg = project.load_config()
 if not cfg["mp_id"]:
     sys.exit("Set mp_id in config.yaml: the hull is built around that Materials Project entry.")
-host_struct = Structure.from_file(cfg["structure"])
+host_struct = Structure.from_file(cfg.get("structure_unrelaxed") or cfg["structure"])   # always start from MP
 elements = sorted(el.symbol for el in host_struct.composition.elements)
 
 cache = "bulk/mp_entries.json"
@@ -53,6 +54,7 @@ for v in verts:
     print("  vertex: host +", names, {k: round(x, 3) for k, x in v["dmu"].items()})
 
 dk = cfg["qe"]["kspacing"]
+relax = cfg["relax_bulk"]
 manifest = []
 print(f"\n{'role':11s}{'phase':12s}{'mp id':14s}{'hull meV':>9s}  {'atoms':>5s}  k-points   input")
 for entry, role in phases:
@@ -74,12 +76,15 @@ for entry, role in phases:
     else:
         atoms, prefix = AseAtomsAdaptor.get_atoms(mp.conventional(entry.structure)), f"{formula}_{mpid}"
     kpts = kpts or slabs.kpts_from_spacing(atoms, dk)
+    calc = ("relax" if gas else "vc-relax") if relax else "scf"
+    infile = f"bulk/{prefix}_{calc.replace('-', '')}.pwi"
     atoms.write(f"bulk/{prefix}.cif")
-    qe.write_bulk_scf(f"bulk/{prefix}_scf.pwi", atoms, cfg, kpts, magmom)
-    manifest.append({"prefix": prefix, "formula": formula, "mp_id": mpid, "role": role, "molecule": gas})
+    qe.write_bulk(infile, atoms, cfg, kpts, calc, magmom)
+    manifest.append({"prefix": prefix, "formula": formula, "mp_id": mpid, "role": role, "molecule": gas,
+                     "input": infile})
     print(f"{role:11s}{formula:12s}{mpid:14s}{1000 * pd_raw.get_e_above_hull(entry):9.1f}  {len(atoms):5d}  "
-          f"{'x'.join(map(str, kpts)):9s}  bulk/{prefix}_scf.pwi")
+          f"{'x'.join(map(str, kpts)):9s}  {infile}")
 
 project.save_json("bulk/phases.json", manifest)
-print("\nRun each input:  pw.x -in X_scf.pwi > X_scf.pwo   (inside bulk/)")
+print("\nRun each input:  pw.x -in X.pwi > X.pwo   (inside bulk/)")
 print("next: python 03_chempots.py")

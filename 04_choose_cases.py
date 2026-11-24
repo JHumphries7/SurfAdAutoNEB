@@ -7,6 +7,7 @@ Builds the slabs and writes the clean-slab QE relax inputs.
 """
 import argparse
 import os
+import sys
 
 from ase.io import read, write
 from pymatgen.core import Structure
@@ -24,9 +25,14 @@ ap.add_argument("--planes", type=int, help="number of atomic planes in the slab"
 ap.add_argument("--thickness", type=float, help="minimum slab thickness, Angstrom")
 ap.add_argument("--repeat", type=int, nargs=2, metavar=("N1", "N2"), help="in-plane supercell")
 ap.add_argument("--list", action="store_true", help="show the options and stop")
+ap.add_argument("--unrelaxed", action="store_true", help="build slabs from the unrelaxed cell (skip steps 2-3)")
 a = ap.parse_args()
 
 cfg = project.load_config()
+if cfg["relax_bulk"] and not cfg.get("relaxed") and not a.unrelaxed:
+    sys.exit("The host cell has not been relaxed yet: run steps 2-3 first (03_chempots.py saves the relaxed cell),\n"
+             "or use --unrelaxed to build slabs from the unrelaxed cell.")
+print(f"building slabs from {cfg['structure']}")
 sl = cfg["slab"]
 bulk = read(cfg["structure"])
 elements = sorted(set(bulk.get_chemical_symbols()))
