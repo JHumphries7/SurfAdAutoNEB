@@ -38,7 +38,11 @@ entries = loadfn(cache)
 
 hosts = [e for e in entries if mp.mp_id_of(e) == cfg["mp_id"]]
 if not hosts:
-    sys.exit(f"{cfg['mp_id']} is not in the {'-'.join(elements)} system on Materials Project.")
+    same = [f"{mp.mp_id_of(e)} (entry {e.entry_id})" for e in entries
+            if e.composition.reduced_formula == host_struct.composition.reduced_formula]
+    sys.exit(f"{cfg['mp_id']} not found among the {len(entries)} GGA entries of {'-'.join(elements)}.\n"
+             f"Entries with formula {host_struct.composition.reduced_formula}: {', '.join(same) or 'none'}\n"
+             "If mp_entries.json came from an older version of this script, rerun with --refresh.")
 host = min(hosts, key=lambda e: e.energy_per_atom)
 phases, verts, e_hull, pd_raw = chempots.select_phases(entries, host, a.ehull, a.el_window, a.max_alt)
 

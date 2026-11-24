@@ -35,10 +35,12 @@ def get_chemsys_entries(elements, api_key=None):
     with rester(api_key) as mpr:
         entries = mpr.get_entries_in_chemsys("-".join(elements), compatible_only=True,
                                              additional_criteria=GGA)
-    for e in entries:
-        e.data = {}                        # MP metadata (not needed) can't be saved to JSON
+    for e in entries:                      # keep only the material id; the rest can't be saved to JSON
+        e.data = {"material_id": str(e.data.get("material_id", ""))}
     return entries
 
 
 def mp_id_of(entry):
-    return str(entry.entry_id).replace("-GGA+U", "").replace("-GGA", "")
+    """Material id (e.g. mp-2305). The entry_id can be a calculation id instead."""
+    mid = entry.data.get("material_id")
+    return mid if mid else str(entry.entry_id).replace("-GGA+U", "").replace("-GGA", "")
