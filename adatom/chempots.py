@@ -59,7 +59,7 @@ def select_phases(entries, host, ehull=0.05, el_window=0.010, max_alt=2):
     picked = {}
 
     def add(entry, role):
-        picked.setdefault(entry.entry_id, (entry, role))
+        picked.setdefault(id(entry), (entry, role))
 
     add(host, "host")
     neighbours = [e for v in verts for e in v["neighbours"]]

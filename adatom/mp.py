@@ -37,10 +37,22 @@ def get_chemsys_entries(elements, api_key=None):
                                              additional_criteria=GGA)
     for e in entries:                      # keep only the material id; the rest can't be saved to JSON
         e.data = {"material_id": str(e.data.get("material_id", ""))}
-    return entries
+    return clean(entries)
 
 
 def mp_id_of(entry):
     """Material id (e.g. mp-2305). The entry_id can be a calculation id instead."""
     mid = entry.data.get("material_id")
-    return mid if mid else str(entry.entry_id).replace("-GGA+U", "").replace("-GGA", "")
+    if mid:
+        return str(mid)
+    if isinstance(entry.entry_id, dict):
+        return str(entry.entry_id.get("material_id", entry.entry_id))
+    return str(entry.entry_id).replace("-GGA+U", "").replace("-GGA", "")
+
+
+def clean(entries):
+    """Give every entry a plain string id like 'mp-2305-GGA'."""
+    for e in entries:
+        if not isinstance(e.entry_id, str):
+            e.entry_id = f"{mp_id_of(e)}-GGA"
+    return entries

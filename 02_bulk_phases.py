@@ -34,7 +34,7 @@ os.makedirs("bulk", exist_ok=True)
 if a.refresh or not os.path.exists(cache):
     dumpfn(mp.get_chemsys_entries(elements, a.api_key), cache + ".tmp")
     os.replace(cache + ".tmp", cache)      # only replace the cache once it is fully written
-entries = loadfn(cache)
+entries = mp.clean(loadfn(cache))
 
 hosts = [e for e in entries if mp.mp_id_of(e) == cfg["mp_id"]]
 if not hosts:
