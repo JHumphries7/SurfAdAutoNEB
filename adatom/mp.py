@@ -40,6 +40,14 @@ def get_chemsys_entries(elements, api_key=None):
     return clean(entries)
 
 
+def normalize_id(mp_id):
+    """'2305', 2305 or 'MP-2305' -> 'mp-2305'."""
+    if mp_id is None:
+        return None
+    mp_id = str(mp_id).strip().lower()
+    return f"mp-{mp_id}" if mp_id.isdigit() else mp_id
+
+
 def mp_id_of(entry):
     """Material id (e.g. mp-2305). The entry_id can be a calculation id instead."""
     mid = entry.data.get("material_id")

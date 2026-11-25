@@ -28,6 +28,7 @@ a = ap.parse_args()
 
 if not a.mp_id and not a.cif:
     a.mp_id = input("Materials Project id (e.g. mp-2305): ").strip()
+a.mp_id = mp.normalize_id(a.mp_id)
 
 if a.cif:
     structure = Structure.from_file(a.cif)

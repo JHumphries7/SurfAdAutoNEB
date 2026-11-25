@@ -28,6 +28,7 @@ ap.add_argument("--refresh", action="store_true", help="query Materials Project 
 a = ap.parse_args()
 
 cfg = project.load_config()
+cfg["mp_id"] = mp.normalize_id(cfg["mp_id"])
 host_struct = Structure.from_file(cfg.get("structure_unrelaxed") or cfg["structure"])   # always start from MP
 elements = sorted(el.symbol for el in host_struct.composition.elements)
 
