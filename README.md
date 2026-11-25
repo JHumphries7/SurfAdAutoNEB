@@ -129,6 +129,8 @@ with care.
 | `qe` | `forc_conv_thr` | Force threshold for relaxations (Ry/Bohr; 3.9e-4 = 0.01 eV/Å) |
 | `qe` | `press_conv_thr` | Pressure threshold for the bulk cell relaxations, kbar |
 | `qe` | `nstep` | Maximum BFGS steps in every relaxation (QE's own default is 50) |
+| `qe` | `electron_maxstep` | Maximum SCF iterations per step (QE's own default is 100) |
+| `qe` | `mixing_beta`, `bulk_mixing_beta` | SCF mixing: slabs use `local-TF` mixing with `mixing_beta`; bulk cells and molecules use `plain` mixing with `bulk_mixing_beta` |
 | – | `relax_bulk` | `true` (default): relax the bulk cells (`vc-relax`) and build slabs from the relaxed cell. `false`: single-point SCFs on the Materials Project cells. |
 | `slab` | `min_thickness` or `n_planes` | Slab thickness in Å, or an exact number of atomic planes |
 | `slab` | `vacuum` | Total vacuum, Å |
@@ -309,6 +311,11 @@ pw.x -in bulk/MoC_host_vcrelax.pwi > bulk/MoC_host_vcrelax.pwo
 
 This copies the last geometry (and cell) into the input, keeps every other setting and fixed-atom flag, and
 keeps the old files as `.pwi.1` / `.pwo.1`. It works for bulk, slab, minimum and saddle relaxations.
+Sometimes BFGS stops on its own before reaching the thresholds (`bfgs history already reset`), typically on very
+flat energy surfaces such as layered carbon. The scripts accept such a run if the remaining forces are below
+1.2e-3 Ry/Bohr (about 0.03 eV/Å) and, for a cell relaxation, the pressure is within 5 kbar, and print a note;
+otherwise they report it so you can restart it.
+
 If a relaxation keeps stopping, look at the energies in the output: steady decrease means it just needs
 more steps (raise `nstep`); jumping up and down usually means a soft or awkward geometry worth checking by eye.
 

@@ -41,8 +41,11 @@ def _namelists(cfg, calculation, prefix, slab_dipole=None):
         system.update(edir=3, emaxpos=slab_dipole, eopreg=0.05, eamp=0.0)
     else:
         control["tstress"] = True
-    data = {"control": control, "system": system,
-            "electrons": {"conv_thr": q["conv_thr"], "mixing_mode": "local-TF", "mixing_beta": q["mixing_beta"]}}
+    slab = slab_dipole is not None          # local-TF mixing suits slabs; plain mixing suits bulk
+    electrons = {"conv_thr": q["conv_thr"], "electron_maxstep": q["electron_maxstep"],
+                 "mixing_mode": "local-TF" if slab else "plain",
+                 "mixing_beta": q["mixing_beta"] if slab else q["bulk_mixing_beta"]}
+    data = {"control": control, "system": system, "electrons": electrons}
     if calculation in ("relax", "vc-relax"):
         control["forc_conv_thr"] = q["forc_conv_thr"]
         control["nstep"] = q["nstep"]
@@ -113,8 +116,10 @@ def write_nebx(path, images, cfg, kpts, zcut, emaxpos, magmom=0.5):
     open(path, "w").write("\n".join(out) + "\n")
 
 
-def parse_pw(path):
-    """Final energy (eV), composition, pressure and status of a pw.x output."""
+def parse_pw(path, force_tol=1.2e-3, press_tol=5.0):
+    """Final energy (eV), composition, pressure and status of a pw.x output.
+    A relaxation that BFGS stopped early is accepted if the final forces (Ry/Bohr) and, for vc-relax,
+    the pressure (kbar) are within force_tol / press_tol."""
     txt = open(path, errors="replace").read()
     tot = re.findall(r"^!\s+total energy\s+=\s+(-?\d+\.\d+)\s+Ry", txt, re.M)
     if not tot:
@@ -123,14 +128,25 @@ def parse_pw(path):
     sites = re.findall(r"^\s+\d+\s+([A-Za-z]+\d*)\s+tau\(\s*\d+\)\s+=", txt, re.M)[:nat]
     press = re.findall(r"total\s+stress\s+\(Ry/bohr\*\*3\)\s+\(kbar\)\s+P=\s*(-?\d+\.\d+)", txt)
     mag = re.findall(r"total magnetization\s+=\s+(-?\d+\.\d+)", txt)
-    problems = []
+    forces = re.findall(r"^\s+atom\s+\d+\s+type\s+\d+\s+force\s+=\s+(\S+)\s+(\S+)\s+(\S+)", txt, re.M)
+    fmax = max((sum(float(x) ** 2 for x in f) ** 0.5 for f in forces[-nat:]), default=None)
+    problems, note = [], None
     if "JOB DONE" not in txt:
         problems.append("no JOB DONE")
     if "convergence NOT achieved" in txt:
         problems.append("an SCF did not converge")
     if "BFGS Geometry Optimization" in txt and "bfgs converged" not in txt:
-        problems.append("relaxation not converged")
-    return {"file": path, "ok": not problems, "problems": problems, "nat": nat,
+        stalled = re.search(r"history (already )?reset|trust.radius|bfgs failed", txt, re.I)
+        vc = "vc-relax" in txt or "Wentzcovitch" in txt or "CELL_PARAMETERS" in txt
+        small = fmax is not None and fmax <= force_tol and (not vc or (press and abs(float(press[-1])) <= press_tol))
+        if stalled and small and not problems:
+            note = (f"BFGS stopped early but max force {fmax:.1e} Ry/Bohr"
+                    + (f", P = {float(press[-1]):.1f} kbar" if vc else "") + ": accepted")
+        elif "maximum number of steps" in txt:
+            problems.append("relaxation hit the step limit (use restart_relax.py)")
+        else:
+            problems.append("relaxation not converged" + (f" (max force {fmax:.1e} Ry/Bohr)" if fmax else ""))
+    return {"file": path, "ok": not problems, "problems": problems, "note": note, "nat": nat, "fmax": fmax,
             "comp": Composition(dict(Counter(re.sub(r"\d+$", "", s) for s in sites))),
             "E": float(tot[-1]) * RY,
             "P_kbar": float(press[-1]) if press else None,

@@ -28,6 +28,8 @@ for ph in phases:
     if not r["ok"]:
         missing.append(f"{out}: {', '.join(r['problems'])}")
         continue
+    if r.get("note"):
+        print(f"  note, {out}: {r['note']}")
     entry = PDEntry(r["comp"], r["E"], name=ph["prefix"])
     entries.append(entry)
     if ph["role"] == "host":

@@ -21,7 +21,9 @@ DEFAULTS = {
         "dftd3_version": 4,       # 4 = D3 with Becke-Johnson damping, 3 = zero damping
         "kspacing": 0.25,         # 1/Angstrom (2*pi included), used for bulk and slab k-meshes
         "conv_thr": 1e-7,
-        "mixing_beta": 0.2,
+        "mixing_beta": 0.2,       # slabs (local-TF mixing)
+        "bulk_mixing_beta": 0.4,  # bulk cells and molecules (plain mixing)
+        "electron_maxstep": 300,  # max SCF iterations (QE default is 100)
         "forc_conv_thr": 3.9e-4,  # Ry/Bohr = 0.01 eV/Angstrom
         "press_conv_thr": 0.5,    # kbar, for the bulk vc-relax
         "nstep": 300,             # max BFGS steps in relax / vc-relax (QE default is 50)
