@@ -33,6 +33,7 @@ def _namelists(cfg, calculation, prefix, slab_dipole=None):
             "electrons": {"conv_thr": q["conv_thr"], "mixing_mode": "local-TF", "mixing_beta": q["mixing_beta"]}}
     if calculation in ("relax", "vc-relax"):
         control["forc_conv_thr"] = q["forc_conv_thr"]
+        control["nstep"] = q["nstep"]
         data["ions"] = {"ion_dynamics": "bfgs"}
     if calculation == "vc-relax":           # QE ends with a fresh SCF at the final cell
         data["cell"] = {"cell_dynamics": "bfgs", "cell_dofree": "all", "press_conv_thr": q["press_conv_thr"]}

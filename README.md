@@ -127,6 +127,7 @@ with care.
 | `qe` | `kspacing` | k-point spacing in 1/Å; sets the k-mesh of every bulk and slab |
 | `qe` | `forc_conv_thr` | Force threshold for relaxations (Ry/Bohr; 3.9e-4 = 0.01 eV/Å) |
 | `qe` | `press_conv_thr` | Pressure threshold for the bulk cell relaxations, kbar |
+| `qe` | `nstep` | Maximum BFGS steps in every relaxation (QE's own default is 50) |
 | – | `relax_bulk` | `true` (default): relax the bulk cells (`vc-relax`) and build slabs from the relaxed cell. `false`: single-point SCFs on the Materials Project cells. |
 | `slab` | `min_thickness` or `n_planes` | Slab thickness in Å, or an exact number of atomic planes |
 | `slab` | `vacuum` | Total vacuum, Å |
@@ -291,6 +292,21 @@ neb.x -inp dft/100_t2_Mo__C__a2/100_t2_Mo__C__a2_hop0_neb.in
 ```
 
 Run this once on the hop that sets the lowest E_A to check that the cheaper route agrees.
+
+## If a relaxation stops before converging
+
+If a `relax` or `vc-relax` hits the step limit (`The maximum number of steps has been reached`) or the job
+runs out of time, continue it from where it stopped:
+
+```bash
+python $AB/restart_relax.py bulk/MoC_host_vcrelax.pwo
+pw.x -in bulk/MoC_host_vcrelax.pwi > bulk/MoC_host_vcrelax.pwo
+```
+
+This copies the last geometry (and cell) into the input, keeps every other setting and fixed-atom flag, and
+keeps the old files as `.pwi.1` / `.pwo.1`. It works for bulk, slab, minimum and saddle relaxations.
+If a relaxation keeps stopping, look at the energies in the output: steady decrease means it just needs
+more steps (raise `nstep`); jumping up and down usually means a soft or awkward geometry worth checking by eye.
 
 ## Files in a project folder
 
