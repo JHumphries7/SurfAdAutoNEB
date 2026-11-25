@@ -107,7 +107,16 @@ This downloads the PBE-relaxed structure as the conventional cell, saves it to `
 The API key is saved to `mp_api_key.txt` so later steps find it (you can instead `export MP_API_KEY=...`).
 
 To use your own structure file: `--cif my.cif --mp-id mp-2305`. It is converted to the conventional cell
-unless you add `--keep-cell`. The `--mp-id` is still needed for step 2.
+unless you add `--keep-cell`.
+
+**Materials that are not on Materials Project** (e.g. a new ternary): give only the structure,
+`--cif NbMoN.cif`, with no `--mp-id`. Step 2 then cannot know which phases your material sits next to on
+the hull, so it includes every phase within `--ehull` (default 50 meV/atom) of the hull of that chemical
+system, plus the elements. Step 3 places your material on the hull built from your own energies, prints its
+hull energy, and finds its vertices as usual. Expect more bulk calculations than for a material on Materials
+Project (often 10–20 for a ternary); use `--ehull 0.025` to trim the list. If step 3 reports your material well
+above its own hull (more than about 50 meV/atom), it would likely decompose, so treat its chemical potentials
+with care.
 
 **Open `config.yaml` and check it.** Every setting used later lives there:
 

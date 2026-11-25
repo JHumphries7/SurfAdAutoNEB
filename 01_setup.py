@@ -2,6 +2,7 @@
 
   python 01_setup.py --mp-id mp-2305 --api-key YOUR_KEY
   python 01_setup.py --cif MoC.cif --mp-id mp-2305
+  python 01_setup.py --cif NbMoN.cif          (material not on Materials Project)
 """
 import argparse
 import copy

@@ -2,6 +2,8 @@
 
   python 02_bulk_phases.py
 Writes vc-relax inputs (relax for gas molecules), or SCF inputs if relax_bulk is false in config.yaml.
+If your material is not on Materials Project (no mp_id), every phase near the hull of its chemical
+system is included, since its neighbours on the hull are not known until step 3.
 Run every bulk/*.pwi with pw.x (output: same name with .pwo), then run 03_chempots.py.
 """
 import argparse
@@ -10,6 +12,7 @@ import sys
 
 from ase.build import molecule
 from monty.serialization import dumpfn, loadfn
+from pymatgen.analysis.phase_diagram import PDEntry
 from pymatgen.core import Structure
 from pymatgen.io.ase import AseAtomsAdaptor
 
@@ -25,8 +28,6 @@ ap.add_argument("--refresh", action="store_true", help="query Materials Project 
 a = ap.parse_args()
 
 cfg = project.load_config()
-if not cfg["mp_id"]:
-    sys.exit("Set mp_id in config.yaml: the hull is built around that Materials Project entry.")
 host_struct = Structure.from_file(cfg.get("structure_unrelaxed") or cfg["structure"])   # always start from MP
 elements = sorted(el.symbol for el in host_struct.composition.elements)
 
@@ -37,28 +38,36 @@ if a.refresh or not os.path.exists(cache):
     os.replace(cache + ".tmp", cache)      # only replace the cache once it is fully written
 entries = mp.clean(loadfn(cache))
 
-hosts = [e for e in entries if mp.mp_id_of(e) == cfg["mp_id"]]
-if not hosts:
+hosts = [e for e in entries if mp.mp_id_of(e) == cfg["mp_id"]] if cfg["mp_id"] else []
+if cfg["mp_id"] and not hosts:
     same = [f"{mp.mp_id_of(e)} (entry {e.entry_id})" for e in entries
             if e.composition.reduced_formula == host_struct.composition.reduced_formula]
     sys.exit(f"{cfg['mp_id']} not found among the {len(entries)} GGA entries of {'-'.join(elements)}.\n"
              f"Entries with formula {host_struct.composition.reduced_formula}: {', '.join(same) or 'none'}\n"
              "If mp_entries.json came from an older version of this script, rerun with --refresh.")
-host = min(hosts, key=lambda e: e.energy_per_atom)
-phases, verts, e_hull, pd_raw = chempots.select_phases(entries, host, a.ehull, a.el_window, a.max_alt)
-
-print(f"{cfg['mp_id']} ({host.composition.reduced_formula}): {1000 * e_hull:.1f} meV/atom above the PBE hull"
-      + ("  -> treated as on the hull (pinned)" if e_hull > 0 else ""))
-for v in verts:
-    names = " + ".join(f"{e.composition.reduced_formula} ({mp.mp_id_of(e)})" for e in v["neighbours"])
-    print("  vertex: host +", names, {k: round(x, 3) for k, x in v["dmu"].items()})
+if hosts:
+    host = min(hosts, key=lambda e: e.energy_per_atom)
+    phases, verts, e_hull, pd_raw = chempots.select_phases(entries, host, a.ehull, a.el_window, a.max_alt)
+    print(f"{cfg['mp_id']} ({host.composition.reduced_formula}): {1000 * e_hull:.1f} meV/atom above the PBE hull"
+          + ("  -> treated as on the hull (pinned)" if e_hull > 0 else ""))
+    for v in verts:
+        names = " + ".join(f"{e.composition.reduced_formula} ({mp.mp_id_of(e)})" for e in v["neighbours"])
+        print("  vertex: host +", names, {k: round(x, 3) for k, x in v["dmu"].items()})
+else:
+    host = PDEntry(host_struct.composition, 0.0, name="host")        # energy comes from your own run
+    phases, pd_raw = chempots.select_all_near_hull(entries, a.ehull, a.el_window, a.max_alt)
+    phases = [(host, "host")] + phases
+    print(f"{host_struct.composition.reduced_formula} is not taken from Materials Project: including every phase "
+          f"within {1000 * a.ehull:.0f} meV/atom of the {'-'.join(elements)} hull.\n"
+          "Its own hull energy and vertices are computed in step 3.")
 
 dk = cfg["qe"]["kspacing"]
 relax = cfg["relax_bulk"]
 manifest = []
 print(f"\n{'role':11s}{'phase':12s}{'mp id':14s}{'hull meV':>9s}  {'atoms':>5s}  k-points   input")
 for entry, role in phases:
-    formula, mpid = entry.composition.reduced_formula, mp.mp_id_of(entry)
+    formula = entry.composition.reduced_formula
+    mpid = mp.mp_id_of(entry) if role != "host" or cfg["mp_id"] else "none"
     gas = entry.composition.is_element and entry.composition.elements[0].symbol in chempots.GASES
     magmom, kpts = 0.5, None
     if role == "host":
@@ -82,7 +91,8 @@ for entry, role in phases:
     qe.write_bulk(infile, atoms, cfg, kpts, calc, magmom)
     manifest.append({"prefix": prefix, "formula": formula, "mp_id": mpid, "role": role, "molecule": gas,
                      "input": infile})
-    print(f"{role:11s}{formula:12s}{mpid:14s}{1000 * pd_raw.get_e_above_hull(entry):9.1f}  {len(atoms):5d}  "
+    hull = f"{1000 * pd_raw.get_e_above_hull(entry):.1f}" if role != "host" or cfg["mp_id"] else "-"
+    print(f"{role:11s}{formula:12s}{mpid:14s}{hull:>9s}  {len(atoms):5d}  "
           f"{'x'.join(map(str, kpts)):9s}  {infile}")
 
 project.save_json("bulk/phases.json", manifest)

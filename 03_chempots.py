@@ -41,8 +41,13 @@ pd, pinned, e_hull, _ = chempots.build_hull(entries, host)
 verts = chempots.vertices(pd, pinned)
 ref = a.vertex - 1 if a.vertex else chempots.reference_vertex(verts, host)
 
-print(f"\nhost is {1000 * e_hull:.1f} meV/atom {'above' if e_hull > 0 else 'below'} your own hull"
-      + ("  -> pinned onto the hull" if e_hull > 0 else ""))
+if e_hull > 0:
+    print(f"\nhost is {1000 * e_hull:.1f} meV/atom above your own hull  -> pinned onto the hull")
+    if e_hull > 0.05:
+        print("  warning: that is well above the hull, so the host would likely decompose; the chemical\n"
+              "  potentials are those of the pinned host and should be read with that in mind")
+else:
+    print("\nhost is on your own hull")
 print("Vertices (mu in eV/atom, delta-mu relative to the elements):")
 for i, v in enumerate(verts):
     mark = "  <- reference" if i == ref else ""

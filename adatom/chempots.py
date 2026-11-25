@@ -51,6 +51,16 @@ def _inside(comp, corners, elements):
     return nnls(A, np.append(vec(comp), 1.0))[1] < 1e-6
 
 
+def _add_elements(add, entries, pd_raw, el_window, max_alt):
+    for el in pd_raw.elements:
+        ref = pd_raw.el_refs[el]
+        add(ref, "elem_ref")
+        alts = [e for e in entries if e.composition.is_element and e.composition.elements[0] == el
+                and e is not ref and e.energy_per_atom - ref.energy_per_atom <= el_window]
+        for e in sorted(alts, key=lambda e: e.energy_per_atom)[:max_alt]:
+            add(e, "elem_alt")
+
+
 def select_phases(entries, host, ehull=0.05, el_window=0.010, max_alt=2):
     """Bulk phases needed for the chemical potentials: [(entry, role)].
     Roles: host, vertex, elem_ref, elem_alt, near_hull."""
@@ -65,16 +75,31 @@ def select_phases(entries, host, ehull=0.05, el_window=0.010, max_alt=2):
     neighbours = [e for v in verts for e in v["neighbours"]]
     for e in neighbours:
         add(e, "vertex")
-    for el in pd_raw.elements:
-        ref = pd_raw.el_refs[el]
-        add(ref, "elem_ref")
-        alts = [e for e in entries if e.composition.is_element and e.composition.elements[0] == el
-                and e is not ref and e.energy_per_atom - ref.energy_per_atom <= el_window]
-        for e in sorted(alts, key=lambda e: e.energy_per_atom)[:max_alt]:
-            add(e, "elem_alt")
+    _add_elements(add, entries, pd_raw, el_window, max_alt)
     corners = [host.composition] + [e.composition for e in neighbours]
     for e in entries:
         if len(e.composition.elements) > 1 and pd_raw.get_e_above_hull(e) <= ehull \
                 and _inside(e.composition, corners, pd_raw.elements):
             add(e, "near_hull")
     return list(picked.values()), verts, e_hull, pd_raw
+
+
+def select_all_near_hull(entries, ehull=0.05, el_window=0.010, max_alt=2):
+    """For a host that is not on Materials Project: every compound within ehull of the
+    hull in the chemical system, plus the element references. Roles: near_hull, elem_*."""
+    pd_raw = PhaseDiagram(entries)
+    picked = {}
+
+    def add(entry, role):
+        picked.setdefault(id(entry), (entry, role))
+
+    _add_elements(add, entries, pd_raw, el_window, max_alt)
+    best = {}                              # lowest polymorph per composition, then the window
+    for e in entries:
+        if len(e.composition.elements) > 1 and pd_raw.get_e_above_hull(e) <= ehull:
+            key = e.composition.reduced_formula
+            if key not in best or e.energy_per_atom < best[key].energy_per_atom:
+                best[key] = e
+    for e in sorted(best.values(), key=lambda e: e.composition.reduced_formula):
+        add(e, "near_hull")
+    return list(picked.values()), pd_raw
