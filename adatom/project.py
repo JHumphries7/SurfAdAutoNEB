@@ -11,6 +11,7 @@ DEFAULTS = {
     "structure": None,
     "qe": {
         "pseudo_dir": "./pseudos",
+        "outdir": "./tmp",        # QE scratch; each calculation gets its own subfolder
         "ecutwfc": 60,
         "ecutrho": None,          # None = QE default (4 x ecutwfc)
         "smearing": "mv",

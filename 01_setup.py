@@ -19,6 +19,7 @@ ap.add_argument("--keep-cell", action="store_true", help="with --cif: do not con
 ap.add_argument("--name", help="project name (default: the chemical formula)")
 ap.add_argument("--api-key", help="Materials Project API key (or set MP_API_KEY)")
 ap.add_argument("--pseudo-dir", default="./pseudos", help="folder with <Element>.upf files")
+ap.add_argument("--outdir", default="./tmp", help="QE scratch folder, e.g. /scratch/$USER/qe (one subfolder per run)")
 ap.add_argument("--ecutwfc", type=float, default=60, help="plane-wave cutoff, Ry")
 ap.add_argument("--kspacing", type=float, default=0.25, help="k-point spacing, 1/Angstrom")
 ap.add_argument("--nspin", type=int, default=2, choices=[1, 2])
@@ -46,7 +47,7 @@ structure.to(filename=path)
 
 cfg = copy.deepcopy(project.DEFAULTS)
 cfg.update(name=name, mp_id=a.mp_id, structure=path)
-cfg["qe"].update(pseudo_dir=os.path.abspath(a.pseudo_dir), ecutwfc=a.ecutwfc, kspacing=a.kspacing, nspin=a.nspin)
+cfg["qe"].update(pseudo_dir=os.path.abspath(a.pseudo_dir), outdir=a.outdir, ecutwfc=a.ecutwfc, kspacing=a.kspacing, nspin=a.nspin)
 cfg["mlip"]["backend"] = a.backend
 project.save_config(cfg)
 

@@ -100,7 +100,7 @@ Make one folder per material and run every script from inside it. Below, `$AB` i
 
 ```bash
 mkdir MoC && cd MoC
-python $AB/01_setup.py --mp-id mp-2305 --api-key YOUR_KEY --pseudo-dir /path/to/pseudos
+python $AB/01_setup.py --mp-id mp-2305 --api-key YOUR_KEY --pseudo-dir /path/to/pseudos --outdir /scratch/$USER/qe
 ```
 
 This downloads the PBE-relaxed structure as the conventional cell, saves it to `structure/`, and writes `config.yaml`.
@@ -123,6 +123,7 @@ with care.
 | Section | Setting | Meaning |
 |---|---|---|
 | `qe` | `pseudo_dir`, `ecutwfc`, `ecutrho`, `smearing`, `degauss`, `nspin` | Written into every QE input |
+| `qe` | `outdir` | QE scratch folder (wavefunctions, charge density). Each calculation gets its own subfolder: `<outdir>/<prefix>`, or `<outdir>/<name>/<prefix>` for an absolute path such as a scratch disk. A relative path is relative to the folder `pw.x` runs in. Projects sharing a scratch folder need different names (`01_setup.py --name`). |
 | `qe` | `vdw_corr`, `dftd3_version` | Dispersion correction (default two-body D3 with Becke–Johnson damping; `null` turns it off). The MLIP steps add the same D3 automatically. |
 | `qe` | `kspacing` | k-point spacing in 1/Å; sets the k-mesh of every bulk and slab |
 | `qe` | `forc_conv_thr` | Force threshold for relaxations (Ry/Bohr; 3.9e-4 = 0.01 eV/Å) |
@@ -167,7 +168,10 @@ cd bulk
 pw.x -in MoC_host_vcrelax.pwi > MoC_host_vcrelax.pwo
 ```
 
-**Outputs must have the same name as the input, ending in `.pwo`.** This holds for every QE run in this workflow.
+**Outputs must have the same name as the input, ending in `.pwo`,** and **run `pw.x` from the folder that holds
+the input** (`bulk/`, `dft/<slab>/`, `dft/<case>/`). This holds for every QE run in this workflow: the scripts
+read the `.pwo` files there, and a relative `outdir` is created there. Nothing is ever read back from `outdir`,
+so it can be on a scratch disk and be cleaned once a run has finished.
 
 ### 3. Chemical potentials
 

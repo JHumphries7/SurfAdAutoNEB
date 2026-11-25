@@ -11,10 +11,22 @@ from pymatgen.core import Composition
 RY = 13.605693122994      # eV; the one conversion factor used everywhere
 
 
+def outdir_for(cfg, prefix):
+    """Scratch folder of one calculation: <outdir>/<project name>/<prefix> (or <outdir>/<prefix> if relative).
+    One folder per calculation, so wavefunction and charge files of different runs never mix.
+    Nothing in this workflow reads these folders back; all results come from the .pwo files."""
+    base = os.path.expandvars(os.path.expanduser(cfg["qe"].get("outdir") or "./tmp"))
+    if "$" in base:
+        raise SystemExit(f"outdir '{base}' contains an unset environment variable; write the full path in config.yaml")
+    if os.path.isabs(base):
+        return os.path.join(base, cfg["name"], prefix)
+    return os.path.join(base, prefix)
+
+
 def _namelists(cfg, calculation, prefix, slab_dipole=None):
     q = cfg["qe"]
     control = {"calculation": calculation, "prefix": prefix, "pseudo_dir": q["pseudo_dir"],
-               "outdir": "./tmp", "tprnfor": True}
+               "outdir": outdir_for(cfg, prefix), "tprnfor": True}
     system = {"ecutwfc": q["ecutwfc"], "occupations": "smearing", "smearing": q["smearing"],
               "degauss": q["degauss"], "nspin": q["nspin"]}
     if q.get("ecutrho"):
@@ -49,6 +61,12 @@ def _write(path, atoms, cfg, data, kpts, magmom):
     text = buf.getvalue().replace("&FCP\n/\n", "").replace("&RISM\n/\n", "")   # not accepted by QE < 7.1
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     open(path, "w").write(text)
+    od = data["control"]["outdir"]          # a relative outdir is relative to the folder pw.x runs in
+    od = od if os.path.isabs(od) else os.path.join(os.path.dirname(path) or ".", od)
+    try:                                     # QE does not create missing parent folders
+        os.makedirs(od, exist_ok=True)
+    except OSError as err:
+        print(f"  note: could not create {od} ({err.strerror}); create it before running pw.x")
     return text
 
 
