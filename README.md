@@ -190,6 +190,11 @@ It also saves the relaxed cell of your material to `structure/<name>_relaxed.cif
 to it (the original is kept as `structure_unrelaxed`), so step 4 cuts the slabs from the relaxed cell.
 It prints how much the lattice constants changed.
 
+If a bulk phase will not converge, you can leave it out with `--skip <phase>` (the name as printed, e.g.
+`--skip C_mp-2516584`). This is safe when another phase of the same formula is still there (another carbon
+polymorph, say), and the script tells you so; it warns you if the formula is left with no phase at all.
+The host can never be skipped. Skipped phases are recorded in `chempots.json`.
+
 Check the printed pressures: after a `vc-relax` they should be close to zero (within a few kbar).
 Without relaxation, a few tens of kbar is normal.
 

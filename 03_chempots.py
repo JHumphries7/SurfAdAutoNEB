@@ -3,6 +3,7 @@ With relaxed bulk phases it also saves the relaxed host cell, which step 4 build
 
   python 03_chempots.py              (uses the metal-rich vertex)
   python 03_chempots.py --vertex 2   (choose another vertex from the printed list)
+  python 03_chempots.py --skip C_mp-2516584   (leave out a phase that will not converge)
 """
 import argparse
 import os
@@ -15,10 +16,27 @@ from adatom import chempots, project, qe
 
 ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 ap.add_argument("--vertex", type=int, help="number of the vertex to use as the reference")
+ap.add_argument("--skip", nargs="+", default=[], metavar="PHASE",
+                help="leave out these phases (names as printed, e.g. C_mp-2516584); not the host")
 a = ap.parse_args()
 
 cfg = project.load_config()
 phases = project.load_json("bulk/phases.json")
+names = {ph["prefix"] for ph in phases}
+for name in a.skip:
+    if name not in names:
+        sys.exit(f"--skip {name}: no such phase. Phases: {', '.join(sorted(names))}")
+    if next(ph for ph in phases if ph["prefix"] == name)["role"] == "host":
+        sys.exit("--skip: the host itself cannot be left out")
+skipped = [ph for ph in phases if ph["prefix"] in a.skip]
+phases = [ph for ph in phases if ph["prefix"] not in a.skip]
+for ph in skipped:                         # a skipped phase must have a stand-in of the same formula
+    twins = [p["prefix"] for p in phases if p["formula"] == ph["formula"]]
+    if twins:
+        print(f"skipping {ph['prefix']}; {ph['formula']} is still covered by {', '.join(twins)}")
+    else:
+        print(f"WARNING: skipping {ph['prefix']} leaves no {ph['formula']} phase. If it sits next to your "
+              "material on the hull, the chemical potentials will be wrong.")
 
 entries, host, missing = [], None, []
 print(f"{'phase':22s}{'E (eV/atom)':>14s}{'P (kbar)':>10s}{'mag':>7s}")
@@ -37,7 +55,8 @@ for ph in phases:
     p = "" if ph["molecule"] or r["P_kbar"] is None else f"{r['P_kbar']:.1f}"
     print(f"{ph['prefix']:22s}{r['E'] / r['nat']:14.4f}{p:>10s}{r['mag'] if r['mag'] is not None else 0:7.2f}")
 if missing:
-    sys.exit("\nNot ready:\n  " + "\n  ".join(missing))
+    sys.exit("\nNot ready:\n  " + "\n  ".join(missing)
+             + "\nRestart these with restart_relax.py, or leave a non-host phase out with --skip <phase>.")
 
 pd, pinned, e_hull, _ = chempots.build_hull(entries, host)
 verts = chempots.vertices(pd, pinned)
@@ -69,6 +88,7 @@ if "vcrelax" in host_out:                  # slabs are built from the relaxed ho
           + ", ".join(f"{x:+.2f}%" for x in change) + "); config.yaml now points to it")
 
 project.save_json("chempots.json", {
+    "skipped": [ph["prefix"] for ph in skipped],
     "reference": ref, "e_hull_host_meV": 1000 * e_hull,
     "vertices": [{"neighbours": [e.name for e in v["neighbours"]], "mu": v["mu"], "dmu": v["dmu"]} for v in verts]})
 print("\nwrote chempots.json")
