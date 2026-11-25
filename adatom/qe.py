@@ -4,6 +4,8 @@ import os
 import re
 from collections import Counter
 
+import numpy as np
+
 from ase.constraints import FixAtoms, FixCartesian
 from ase.io import read, write
 from pymatgen.core import Composition
@@ -154,5 +156,34 @@ def parse_pw(path, force_tol=1.2e-3, press_tol=5.0):
 
 
 def final_structure(path):
-    """Last geometry in a pw.x output (for restarts and neb.x end points)."""
-    return read(path, index=-1, format="espresso-out")
+    """Last geometry in a pw.x output, read straight from its last CELL_PARAMETERS / ATOMIC_POSITIONS
+    blocks (works even if the run stopped on a failed SCF). The cell comes from the matching .pwi if
+    the output never printed one (a fixed-cell relax). Raises ValueError if no step was printed."""
+    from ase import Atoms
+    from ase.units import Bohr
+    lines = open(path, errors="replace").read().splitlines()
+    start = read(path[:-1] + "i", format="espresso-in")
+    cell, pos_i = start.cell.array.copy(), None
+    for i, line in enumerate(lines):
+        if line.startswith("CELL_PARAMETERS"):
+            vec = np.array([[float(x) for x in lines[i + k].split()[:3]] for k in (1, 2, 3)])
+            if "alat" in line:
+                vec *= float(re.search(r"alat\s*=\s*([\d.]+)", line).group(1)) * Bohr
+            elif "bohr" in line.lower():
+                vec *= Bohr
+            cell = vec
+        if line.startswith("ATOMIC_POSITIONS"):
+            pos_i = i
+    if pos_i is None:
+        raise ValueError(f"{path} has no relaxation step to continue from")
+    unit = lines[pos_i].lower()
+    rows = [l.split() for l in lines[pos_i + 1:pos_i + 1 + len(start)]]
+    symbols = [re.sub(r"\d+$", "", r[0]) for r in rows]
+    xyz = np.array([[float(x) for x in r[1:4]] for r in rows])
+    if "crystal" in unit:
+        xyz = xyz @ cell
+    elif "bohr" in unit:
+        xyz = xyz * Bohr
+    elif "alat" in unit:
+        xyz = xyz * np.linalg.norm(cell[0])
+    return Atoms(symbols, positions=xyz, cell=cell, pbc=True)

@@ -7,13 +7,16 @@ fixed-atom flag. The old files are kept as .pwi.1 / .pwo.1. Then run pw.x on the
 import os
 import sys
 
-from ase.io import read
+from adatom.qe import final_structure
 
 if len(sys.argv) != 2 or not sys.argv[1].endswith(".pwo"):
     sys.exit(__doc__)
 pwo = sys.argv[1]
 pwi = pwo[:-1] + "i"
-last = read(pwo, index=-1, format="espresso-out")
+try:
+    last = final_structure(pwo)
+except ValueError as err:
+    sys.exit(f"{err}: just rerun {pwi} from scratch")
 lines = open(pwi).read().splitlines()
 
 for i, line in enumerate(lines):
